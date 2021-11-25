@@ -13,9 +13,9 @@ using System.Threading.Tasks;
 
 namespace AcloudTools
 {
-    [Cmdlet(VerbsCommon.Get, "AzVmImageState")]
+    [Cmdlet(VerbsCommon.Get, "AzVmUniqueId")]
     [OutputType(typeof(string))]
-    public class GetAzVmImageStateCommand : Cmdlet
+    public class GetAzVmUniqueIdCommand : Cmdlet
     {
         #region public parameters
 
@@ -93,24 +93,24 @@ namespace AcloudTools
         readonly string commandToSend = @"{
                 commandId: ""RunPowerShellScript"",
                 script:[
-                    ""(Get-ItemProperty HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Setup\\State\\).ImageState""
+                    ""(Get-WmiObject -class Win32_ComputerSystemProduct -namespace root\\CIMV2).UUID""
                 ]
                 }";
         PostUri setPostUri = new PostUri();
         HttpClient clientToCall = new HttpClient();
-        ImageStateResult imageStateObj = new ImageStateResult();
+        UniqueIdResult uniqueIdObj = new UniqueIdResult();
 
         #endregion private parameters
 
         protected override void ProcessRecord()
         {
-            var imageStateObjList = GetImageStateAsync();
+            var imageStateObjList = GetUniqueIdAsync();
             imageStateObjList.Wait();
             var imgageStateResultObj = imageStateObjList.Result;
             WriteObject(imgageStateResultObj, true);
         }
 
-        private async Task<ImageStateResult> GetImageStateAsync()
+        private async Task<UniqueIdResult> GetUniqueIdAsync()
         {
             Task<AuthenticationResult> authTask = AuthOps.GetAuthenticatedAsync(tenantId, clientId, clientSecret);
             authTask.Wait();
@@ -140,12 +140,12 @@ namespace AcloudTools
 
             if (!responseSuccess)
             {
-                imageStateObj.Code = "Failed";
-                imageStateObj.DisplayStatus = "Provisioning failed";
-                imageStateObj.Level = "Info";
-                imageStateObj.Message = null;
+                uniqueIdObj.Code = "Failed";
+                uniqueIdObj.DisplayStatus = "Provisioning failed";
+                uniqueIdObj.Level = "Info";
+                uniqueIdObj.Message = null;
 
-                return imageStateObj;
+                return uniqueIdObj;
             }
             else
             {
@@ -155,13 +155,13 @@ namespace AcloudTools
                 int lastCrlyBracketIndex = apiResponseString.LastIndexOf("}");
                 apiResponseString = apiResponseString.Remove(lastCrlyBracketIndex, 1);
 
-                List<ImageStateResult> imageStateResults = JsonConvert.DeserializeObject<List<ImageStateResult>>(apiResponseString);
-                imageStateObj =
-                    (from imgRes in imageStateResults
-                     where imgRes.Message == "IMAGE_STATE_COMPLETE"
+                List<UniqueIdResult> uniqueIdResult = JsonConvert.DeserializeObject<List<UniqueIdResult>>(apiResponseString);
+                uniqueIdObj =
+                    (from imgRes in uniqueIdResult
+                     where !string.IsNullOrEmpty(imgRes.Message)
                      select imgRes).First();
 
-                return imageStateObj;
+                return uniqueIdObj;
             }
 
         }
