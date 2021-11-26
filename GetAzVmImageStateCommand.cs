@@ -18,7 +18,7 @@ namespace AcloudTools
     {
         #region public parameters
 
-        [Parameter(Mandatory = true, HelpMessage = "The virtual machine name.")]
+        [Parameter(Mandatory = true, ParameterSetName = "Default", HelpMessage = "The virtual machine name.")]
         [Parameter(Mandatory = true, ParameterSetName = "GetAccessToken", HelpMessage = "The virtual machine name.")]
         [ValidateNotNullOrEmpty]
         public string Name
