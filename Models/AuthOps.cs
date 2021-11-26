@@ -1,5 +1,7 @@
 ﻿using Microsoft.Identity.Client;
 using System.Collections.Generic;
+using System.Linq;
+using System.Management.Automation;
 using System.Threading.Tasks;
 
 namespace AcloudTools.Models
@@ -21,6 +23,17 @@ namespace AcloudTools.Models
             var result = await app.AcquireTokenForClient(scopes).ExecuteAsync();
 
             return result;
+        }
+
+        public static string GetLocalToken()
+        {
+            PowerShell psCommand = PowerShell.Create();
+            psCommand.AddCommand("Get-AzAccessToken");
+            PSObject accessToken = (from tokenItem in psCommand.Invoke()
+                                    where tokenItem.Members["Token"] != null
+                                    select tokenItem).First();
+
+            return accessToken.Members["Token"].Value.ToString();
         }
     }
 }
