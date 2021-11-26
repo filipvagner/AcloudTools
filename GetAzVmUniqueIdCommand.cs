@@ -1,5 +1,4 @@
 ﻿using AcloudTools.Models;
-using Microsoft.Identity.Client;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -13,16 +12,14 @@ using System.Threading.Tasks;
 
 namespace AcloudTools
 {
-    [Cmdlet(VerbsCommon.Get, "AzVmUniqueId")]
+    [Cmdlet(VerbsCommon.Get, "AzVmUniqueId", DefaultParameterSetName = "Default")]
     [OutputType(typeof(string))]
     public class GetAzVmUniqueIdCommand : Cmdlet
     {
         #region public parameters
 
-        [Parameter(
-            Mandatory = true,
-            Position = 0,
-            HelpMessage = "The virtual machine name.")]
+        [Parameter(Mandatory = true, ParameterSetName = "Default", HelpMessage = "The virtual machine name.")]
+        [Parameter(Mandatory = true, ParameterSetName = "GetAccessToken", HelpMessage = "The virtual machine name.")]
         [ValidateNotNullOrEmpty]
         public string Name
         {
@@ -30,10 +27,8 @@ namespace AcloudTools
             set { vmName = value; }
         }
 
-        [Parameter(
-            Mandatory = true,
-            Position = 1,
-            HelpMessage = "Resource group where is placed virtual machine.")]
+        [Parameter(Mandatory = true, ParameterSetName = "Default", HelpMessage = "Resource group where is placed virtual machine.")]
+        [Parameter(Mandatory = true, ParameterSetName = "GetAccessToken", HelpMessage = "Resource group where is placed virtual machine.")]
         [ValidateNotNullOrEmpty]
         public string ResourceGroupName
         {
@@ -41,43 +36,35 @@ namespace AcloudTools
             set { resourceGroupName = value; }
         }
 
-        [Parameter]
-        public string ClientId
-        {
-            get { return clientId; }
-            set { clientId = value; }
-        }
-
-        [Parameter]
-        public string ClientSecret
-        {
-            get { return clientSecret; }
-            set { clientSecret = value; }
-        }
-
-        [Parameter]
+        [Parameter(Mandatory = true, ParameterSetName = "Default", HelpMessage = "Provide subscription ID where is place virtual machine.")]
+        [Parameter(Mandatory = true, ParameterSetName = "GetAccessToken", HelpMessage = "Provide subscription ID where is place virtual machine.")]
+        [ValidateNotNullOrEmpty]
         public string SubscriptionId
         {
             get { return subscriptionId; }
             set { subscriptionId = value; }
         }
 
-        [Parameter]
+        [Parameter(Mandatory = true, ParameterSetName = "GetAccessToken", HelpMessage = "Provide application's ID in Azure AD.")]
+        public string ClientId
+        {
+            get { return clientId; }
+            set { clientId = value; }
+        }
+
+        [Parameter(Mandatory = true, ParameterSetName = "GetAccessToken", HelpMessage = "Provide application's secret.")]
+        public string ClientSecret
+        {
+            get { return clientSecret; }
+            set { clientSecret = value; }
+        }
+
+        [Parameter(Mandatory = true, ParameterSetName = "GetAccessToken", HelpMessage = "Provide directory (tenant) ID.")]
         public string TenantId
         {
             get { return tenantId; }
             set { tenantId = value; }
         }
-
-        [Parameter(
-           Mandatory = false,
-           HelpMessage = "Requires token (Get-AzAccessToken).")]
-        public string Token
-        {
-            get { return token; }
-            set { token = value; }
-        }
-
         #endregion public parameters
 
         #region private parameters
@@ -88,7 +75,7 @@ namespace AcloudTools
         private string clientSecret;
         private string subscriptionId;
         private string tenantId;
-        private string token;
+        private string accessToken;
         readonly string azResource = "https://management.azure.com/";
         readonly string commandToSend = @"{
                 commandId: ""RunPowerShellScript"",
@@ -102,23 +89,31 @@ namespace AcloudTools
 
         #endregion private parameters
 
+        protected override void BeginProcessing()
+        {
+            if (!string.IsNullOrEmpty(clientId) && !string.IsNullOrEmpty(clientSecret) && !string.IsNullOrEmpty(tenantId))
+            {
+                accessToken = AuthOps.GetAadToken(tenantId, clientId, clientSecret);
+            }
+            else
+            {
+                accessToken = AuthOps.GetLocalToken();
+            }
+        }
         protected override void ProcessRecord()
         {
-            var imageStateObjList = GetUniqueIdAsync();
+            var imageStateObjList = GetUniqueIdAsync(accessToken);
             imageStateObjList.Wait();
             var imgageStateResultObj = imageStateObjList.Result;
             WriteObject(imgageStateResultObj, true);
         }
 
-        private async Task<UniqueIdResult> GetUniqueIdAsync()
+        private async Task<UniqueIdResult> GetUniqueIdAsync(string accessToken)
         {
-            Task<AuthenticationResult> authTask = AuthOps.GetAuthenticatedAsync(tenantId, clientId, clientSecret);
-            authTask.Wait();
-            var authResult = authTask.Result;
             Uri postUri = new Uri(setPostUri.SetPostUri(azResource, subscriptionId, resourceGroupName, vmName));
             var postBody = new StringContent(commandToSend, Encoding.UTF8, "application/json");
 
-            clientToCall.DefaultRequestHeaders.Add("Authorization", "Bearer " + authResult.AccessToken);
+            clientToCall.DefaultRequestHeaders.Add("Authorization", "Bearer " + accessToken);
             clientToCall.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             HttpResponseMessage postResponse = await clientToCall.PostAsync(postUri, postBody);
 
