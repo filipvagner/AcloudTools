@@ -2,7 +2,7 @@
 
 namespace AcloudTools.Models
 {
-    class ImageStateResult
+    class UuidResult
     {
         [JsonProperty("code")]
         public string Code { get; set; }
@@ -14,6 +14,6 @@ namespace AcloudTools.Models
         public string DisplayStatus { get; set; }
 
         [JsonProperty("message")]
-        public string ImageState { get; set; }
+        public string Uuid { get; set; }
     }
 }
