@@ -12,9 +12,9 @@ using System.Threading.Tasks;
 
 namespace AcloudTools
 {
-    [Cmdlet(VerbsCommon.Get, "AzVmImageState", DefaultParameterSetName = "Default")]
+    [Cmdlet(VerbsCommon.Get, "AzVmUuid", DefaultParameterSetName = "Default")]
     [OutputType(typeof(string))]
-    public class GetAzVmImageStateCommand : Cmdlet
+    public class GetAzVmUuidCommand : Cmdlet
     {
         #region public parameters
 
@@ -80,12 +80,12 @@ namespace AcloudTools
         readonly string commandToSend = @"{
                 commandId: ""RunPowerShellScript"",
                 script:[
-                    ""(Get-ItemProperty HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Setup\\State\\).ImageState""
+                    ""(Get-WmiObject -class Win32_ComputerSystemProduct -namespace root\\CIMV2).UUID""
                 ]
                 }";
         PostUri setPostUri = new PostUri();
         HttpClient clientToCall = new HttpClient();
-        ImageStateResult imageStateObj = new ImageStateResult();
+        UuidResult uuidObj = new UuidResult();
 
         #endregion private parameters
 
@@ -100,16 +100,15 @@ namespace AcloudTools
                 accessToken = AuthOps.GetLocalToken();
             }
         }
-
         protected override void ProcessRecord()
         {
-            var imageStateObjList = GetImageStateAsync(accessToken);
+            var imageStateObjList = GetUniqueIdAsync(accessToken);
             imageStateObjList.Wait();
             var imgageStateResultObj = imageStateObjList.Result;
             WriteObject(imgageStateResultObj, true);
         }
 
-        private async Task<ImageStateResult> GetImageStateAsync(string accessToken)
+        private async Task<UuidResult> GetUniqueIdAsync(string accessToken)
         {
             Uri postUri = new Uri(setPostUri.SetPostUri(azResource, subscriptionId, resourceGroupName, vmName));
             var postBody = new StringContent(commandToSend, Encoding.UTF8, "application/json");
@@ -136,12 +135,12 @@ namespace AcloudTools
 
             if (!responseSuccess)
             {
-                imageStateObj.Code = "Failed";
-                imageStateObj.DisplayStatus = "Provisioning failed";
-                imageStateObj.Level = "Info";
-                imageStateObj.ImageState = null;
+                uuidObj.Code = "Failed";
+                uuidObj.DisplayStatus = "Provisioning failed";
+                uuidObj.Level = "Info";
+                uuidObj.Uuid = null;
 
-                return imageStateObj;
+                return uuidObj;
             }
             else
             {
@@ -151,13 +150,13 @@ namespace AcloudTools
                 int lastCrlyBracketIndex = apiResponseString.LastIndexOf("}");
                 apiResponseString = apiResponseString.Remove(lastCrlyBracketIndex, 1);
 
-                List<ImageStateResult> imageStateResults = JsonConvert.DeserializeObject<List<ImageStateResult>>(apiResponseString);
-                imageStateObj =
-                    (from imgRes in imageStateResults
-                     where imgRes.ImageState == "IMAGE_STATE_COMPLETE"
+                List<UuidResult> uniqueIdResult = JsonConvert.DeserializeObject<List<UuidResult>>(apiResponseString);
+                uuidObj =
+                    (from imgRes in uniqueIdResult
+                     where !string.IsNullOrEmpty(imgRes.Uuid)
                      select imgRes).First();
 
-                return imageStateObj;
+                return uuidObj;
             }
 
         }
